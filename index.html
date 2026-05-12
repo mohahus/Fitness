@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+
+<html lang="nl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Mo Fitness"/>
+<title>Mo Fitness</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:#0d0d1a;font-family:Georgia,serif;color:white;overscroll-behavior:none;}
+textarea,input,button{outline:none;font-family:Georgia,serif;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect}=React;
+const WORKOUTS={
+  dag1:{label:"DAG 1",focus:"Borst & Triceps",emoji:"💪",cardio:{name:"Loopband",duration:15},color:"#E84B2E",gradient:"linear-gradient(135deg,#E84B2E,#FF7A5C)",exercises:[{id:"cp",name:"Chest Press Machine",sets:4,reps:12},{id:"cf",name:"Chest Fly / Kabelvlinder",sets:3,reps:12},{id:"pd",name:"Cable Pushdown (touw)",sets:4,reps:12},{id:"oe",name:"Overhead Triceps Extension (touw)",sets:3,reps:12}]},
+  dag2:{label:"DAG 2",focus:"Rug & Biceps",emoji:"🏋️",cardio:null,color:"#2E6BE8",gradient:"linear-gradient(135deg,#2E6BE8,#5C9AFF)",exercises:[{id:"lp",name:"Lat Pulldown (brede greep)",sets:4,reps:12},{id:"sr",name:"Seated Cable Row",sets:4,reps:12},{id:"sa",name:"Straight Arm Pulldown (touw)",sets:3,reps:12},{id:"bc",name:"Bicep Curl Machine / Cable Curl",sets:4,reps:12},{id:"hc",name:"Hammer Curl (dumbbell)",sets:3,reps:12}]},
+  dag3:{label:"DAG 3",focus:"Schouders & Benen",emoji:"🚴",cardio:{name:"Fiets",duration:15},color:"#2EBF7A",gradient:"linear-gradient(135deg,#2EBF7A,#5CFFB2)",exercises:[{id:"sp",name:"Shoulder Press Machine",sets:4,reps:12},{id:"lr",name:"Lateral Raise Machine / Cable",sets:3,reps:12},{id:"lpr",name:"Leg Press Machine",sets:4,reps:12},{id:"lc",name:"Leg Curl Machine",sets:3,reps:12},{id:"le",name:"Leg Extension Machine",sets:3,reps:12}]}
+};
+const NLD=["zo","ma","di","wo","do","vr","za"];
+const NLM=["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+function ts(){return new Date().toISOString().split("T")[0];}
+function fd(ds){const d=new Date(ds+"T12:00:00");return NLD[d.getDay()]+" "+d.getDate()+" "+NLM[d.getMonth()];}
+function ld(k,fb){try{const r=localStorage.getItem("mof_"+k);return r?JSON.parse(r):fb;}catch{return fb;}}
+function sv(k,v){try{localStorage.setItem("mof_"+k,JSON.stringify(v));}catch{}}
+function App(){
+  const[screen,setScreen]=useState("home");
+  const[activeDay,setActiveDay]=useState(null);
+  const[wlog,setWlog]=useState(()=>ld("log",[]));
+  const[weights,setWeights]=useState(()=>ld("weights",[{date:ts(),kg:103}]));
+  const[nw,setNw]=useState("");
+  const[session,setSession]=useState(null);
+  const[done,setDone]=useState({});
+  const[cardioOk,setCardioOk]=useState(false);
+  const[wnote,setWnote]=useState("");
+  const[toast,setToast]=useState(null);
+  const[calM,setCalM]=useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()};});
+  const[dnotes,setDnotes]=useState(()=>ld("notes",{}));
+  const[selD,setSelD]=useState(ts());
+  const[editN,setEditN]=useState("");
+  const[noteMode,setNoteMode]=useState(false);
+  useEffect(()=>{sv("log",wlog);},[wlog]);
+  useEffect(()=>{sv("weights",weights);},[weights]);
+  useEffect(()=>{sv("notes",dnotes);},[dnotes]);
+  function showT(m){setToast(m);setTimeout(()=>setToast(null),2500);}
+  function startW(dk){setActiveDay(dk);setSession({dk,t0:Date.now()});setDone({});setCardioOk(false);setWnote("");setScreen("workout");}
+  function togSet(id,i){const k=id+"_"+i;setDone(p=>({...p,[k]:!p[k]}));}
+  function isDone(id,i){return!!done[id+"_"+i];}
+  function getProg(dk){let t=0,d=0;WORKOUTS[dk].exercises.forEach(ex=>{for(let i=0;i<ex.sets;i++){t++;if(done[ex.id+"_"+i])d++;}});return{t,d,pct:t?Math.round((d/t)*100):0};}
+  function finishW(){
+    if(!session)return;
+    const w=WORKOUTS[session.dk];
+    const dur=Math.max(1,Math.round((Date.now()-session.t0)/60000));
+    const{d,t}=getProg(session.dk);
+    setWlog(p=>[{id:Date.now(),date:ts(),dayKey:session.dk,focus:w.focus,duration:dur,sc:d,st:t,cardio:cardioOk,note:wnote},...p]);
+    setSession(null);showT("Workout opgeslagen! 🔥");setScreen("home");
+  }
+  function addW(){
+    const kg=parseFloat(nw);if(isNaN(kg)||kg<40||kg>300)return;
+    const t=ts();setWeights(p=>[...p.filter(w=>w.date!==t),{date:t,kg}].sort((a,b)=>a.date.localeCompare(b.date)));
+    setNw("");showT("Gewicht opgeslagen!");
+  }
+  function wfd(d){return wlog.filter(e=>e.date===d);}
+  function hasN(d){return!!(dnotes[d]&&dnotes[d].trim());}
+  function openN(ds){setSelD(ds);setEditN(dnotes[ds]||"");setNoteMode(true);}
+  function saveN(){setDnotes(p=>({...p,[selD]:editN}));setNoteMode(false);showT("Notitie opgeslagen! 📝");}
+  const curKg=weights.length?weights[weights.length-1].kg:103;
+  const startKg=weights[0]?.kg||103;
+  const lost=+(startKg-curKg).toFixed(1);
+  const totalW=wlog.length;
+  const thisWeek=wlog.filter(e=>{const d=new Date(e.date),n=new Date();const s=new Date(n);s.setDate(n.getDate()-n.getDay()+1);return d>=s;}).length;
+
+if(screen===“calendar”){
+const{y,m}=calM;
+const dim=new Date(y,m+1,0).getDate();
+const fd2=(new Date(y,m,1).getDay()+6)%7;
+const cells=[…Array(fd2).fill(null),…Array.from({length:dim},(_,i)=>i+1)];
+const today=ts();
+if(noteMode){
+const ws=wfd(selD);
+return(<div style={S.app}>
+<div style={S.topBar}><button onClick={()=>setNoteMode(false)} style={S.btn2}>← Terug</button><h2 style={S.ttl}>Dagnotitie</h2><div style={{width:70}}/></div>
+<div style={S.scroll}>
+<div style={S.card}><div style={{fontWeight:800,fontSize:18,marginBottom:8}}>{fd(selD)}</div>
+{ws.map(w=><span key={w.id} style={{...S.pill,background:WORKOUTS[w.dayKey].color}}>{WORKOUTS[w.dayKey].emoji} {w.focus} · {w.duration} min</span>)}
+{ws.length===0&&<div style={{fontSize:13,color:”#555”,marginTop:4}}>Geen workout gelogd</div>}
+</div>
+<div style={S.card}><label style={S.lbl}>✏️ Notitie</label>
+<textarea value={editN} onChange={e=>setEditN(e.target.value)} placeholder=“Energie, slaap, bloedsuiker, eten…” style={{…S.ta,minHeight:180}} autoFocus/>
+<div style={{display:“flex”,gap:10,marginTop:12}}>
+<button onClick={()=>setNoteMode(false)} style={S.cancelBtn}>Annuleren</button>
+<button onClick={saveN} style={S.saveBtn}>💾 Opslaan</button>
+</div>
+</div>
+</div>
+{toast&&<div style={S.toast}>{toast}</div>}
+</div>);
+}
+return(<div style={S.app}>
+<div style={S.topBar}><button onClick={()=>setScreen(“home”)} style={S.btn2}>← Terug</button><h2 style={S.ttl}>Kalender</h2><button onClick={()=>openN(today)} style={S.ybtn}>+ Vandaag</button></div>
+<div style={S.scroll}>
+<div style={S.monthNav}>
+<button onClick={()=>setCalM(p=>{let mm=p.m-1,yy=p.y;if(mm<0){mm=11;yy–;}return{y:yy,m:mm};})} style={S.arrow}>‹</button>
+<div style={{fontWeight:700,fontSize:17}}>{NLM[m]} {y}</div>
+<button onClick={()=>setCalM(p=>{let mm=p.m+1,yy=p.y;if(mm>11){mm=0;yy++;}return{y:yy,m:mm};})} style={S.arrow}>›</button>
+</div>
+<div style={S.calGrid}>
+{[“ma”,“di”,“wo”,“do”,“vr”,“za”,“zo”].map(d=><div key={d} style={S.calH}>{d}</div>)}
+{cells.map((day,i)=>{
+if(!day)return<div key={“e”+i}/>;
+const ds=y+”-”+String(m+1).padStart(2,“0”)+”-”+String(day).padStart(2,“0”);
+const ws=wfd(ds);const hn=hasN(ds);const isT=ds===today;
+return(<button key={ds} onClick={()=>openN(ds)} style={{…S.calCell,background:isT?“rgba(46,191,122,0.18)”:“rgba(255,255,255,0.03)”,border:isT?“1.5px solid #2EBF7A”:“1px solid rgba(255,255,255,0.07)”}}>
+<span style={{fontSize:13,fontWeight:600,color:isT?”#2EBF7A”:“white”}}>{day}</span>
+<div style={{display:“flex”,gap:2,flexWrap:“wrap”,justifyContent:“center”}}>
+{ws.slice(0,2).map(w=><span key={w.id} style={{...S.dot,background:WORKOUTS[w.dayKey].color}}/>)}
+{hn&&<span style={{…S.dot,background:”#F5C842”}}/>}
+</div>
+</button>);
+})}
+</div>
+<div style={S.legend}>
+{[[”#E84B2E”,“Borst”],[”#2E6BE8”,“Rug”],[”#2EBF7A”,“Schouders”],[”#F5C842”,“Notitie”]].map(([c,l])=>(
+<div key={l} style={{display:“flex”,alignItems:“center”,gap:5,fontSize:12,color:”#888”}}><span style={{...S.dot,background:c}}/>{l}</div>
+))}
+</div>
+<h3 style={S.secTtl}>Recente notities</h3>
+{Object.entries(dnotes).filter(([,v])=>v&&v.trim()).sort(([a],[b])=>b.localeCompare(a)).slice(0,5).map(([ds,text])=>{
+const ws=wfd(ds);
+return(<button key={ds} onClick={()=>openN(ds)} style={S.noteHist}>
+<div style={{display:“flex”,justifyContent:“space-between”,alignItems:“center”,marginBottom:5}}>
+<span style={{fontWeight:700,fontSize:14}}>{fd(ds)}</span>
+{ws[0]&&<span style={{...S.pill,background:WORKOUTS[ws[0].dayKey].color,fontSize:11}}>{ws[0].focus}</span>}
+</div>
+<div style={{fontSize:13,color:”#888”,lineHeight:1.5}}>{text.length>90?text.slice(0,90)+”…”:text}</div>
+</button>);
+})}
+{Object.values(dnotes).filter(v=>v&&v.trim()).length===0&&<div style={S.empty}>Tik op een dag om een notitie toe te voegen.</div>}
+</div>
+{toast&&<div style={S.toast}>{toast}</div>}
+</div>);
+}
+
+if(screen===“workout”&&activeDay){
+const w=WORKOUTS[activeDay];const prog=getProg(activeDay);const circ=2*Math.PI*26;
+return(<div style={S.app}>
+<div style={{...S.wHdr,background:w.gradient}}>
+<button onClick={()=>setScreen(“home”)} style={{background:“rgba(255,255,255,0.15)”,border:“none”,color:“white”,borderRadius:10,padding:“8px 14px”,cursor:“pointer”,fontSize:13}}>← Terug</button>
+<div style={{flex:1,textAlign:“center”}}><div style={{fontSize:34}}>{w.emoji}</div><div style={{fontSize:21,fontWeight:800}}>{w.label}</div><div style={{color:“rgba(255,255,255,0.75)”,fontSize:13}}>{w.focus}</div></div>
+<svg width="60" height="60" viewBox="0 0 64 64">
+<circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="5"/>
+<circle cx=“32” cy=“32” r=“26” fill=“none” stroke=“white” strokeWidth=“5” strokeDasharray={circ} strokeDashoffset={circ*(1-prog.pct/100)} strokeLinecap=“round” style={{transform:“rotate(-90deg)”,transformOrigin:“center”}}/>
+<text x="32" y="37" textAnchor="middle" fill="white" fontSize="13" fontWeight="700">{prog.pct}%</text>
+</svg>
+</div>
+<div style={S.scroll}>
+{w.cardio&&(<div style={{display:“flex”,alignItems:“center”,justifyContent:“space-between”,background:“rgba(255,255,255,0.06)”,borderRadius:16,padding:16,border:“1px solid rgba(255,255,255,0.08)”,cursor:“pointer”}} onClick={()=>setCardioOk(!cardioOk)}>
+<div style={{display:“flex”,alignItems:“center”,gap:12}}><span style={{fontSize:26}}>{activeDay===“dag1”?“🏃”:“🚴”}</span><div><div style={{fontWeight:700}}>{w.cardio.name}</div><div style={{color:”#666”,fontSize:13}}>{w.cardio.duration} min warming-up</div></div></div>
+<div style={{width:36,height:36,borderRadius:“50%”,display:“flex”,alignItems:“center”,justifyContent:“center”,background:cardioOk?”#2EBF7A”:“rgba(255,255,255,0.1)”,border:cardioOk?“none”:“2px solid rgba(255,255,255,0.3)”}}>{cardioOk&&<span style={{color:“white”,fontSize:18}}>✓</span>}</div>
+</div>)}
+{w.exercises.map(ex=>(<div key={ex.id} style={S.card}>
+<div style={{display:“flex”,justifyContent:“space-between”,marginBottom:10}}><div style={{fontWeight:700,fontSize:15,flex:1,paddingRight:8}}>{ex.name}</div><div style={{color:”#555”,fontSize:12}}>{ex.sets}×{ex.reps}</div></div>
+<div style={{display:“flex”,gap:8,flexWrap:“wrap”}}>
+{Array.from({length:ex.sets}).map((_,i)=>(<button key={i} onClick={()=>togSet(ex.id,i)} style={{width:44,height:44,borderRadius:12,cursor:“pointer”,fontSize:14,fontWeight:700,background:isDone(ex.id,i)?w.color:“rgba(255,255,255,0.08)”,border:isDone(ex.id,i)?“none”:“2px solid rgba(255,255,255,0.2)”,color:isDone(ex.id,i)?“white”:“rgba(255,255,255,0.4)”}}>{isDone(ex.id,i)?“✓”:i+1}</button>))}
+</div>
+</div>))}
+<div style={S.card}><label style={S.lbl}>📝 Notitie</label><textarea value={wnote} onChange={e=>setWnote(e.target.value)} placeholder=“Gewichten, gevoel, pijn…” style={S.ta} rows={3}/></div>
+<button onClick={finishW} style={{padding:18,borderRadius:18,border:“none”,color:“white”,fontSize:17,fontWeight:800,cursor:“pointer”,background:w.gradient}}>Workout Afronden 🏆</button>
+</div>
+{toast&&<div style={S.toast}>{toast}</div>}
+</div>);
+}
+
+if(screen===“progress”){
+const dc={dag1:0,dag2:0,dag3:0};wlog.forEach(e=>{if(dc[e.dayKey]!==undefined)dc[e.dayKey]++;});
+const kgs=weights.map(w=>w.kg);const minK=Math.min(…kgs)-1,maxK=Math.max(…kgs)+1;
+const W2=300,H2=100;
+const pts=weights.map((w,i)=>({x:weights.length>1?(i/(weights.length-1))*(W2-20)+10:W2/2,y:H2-((w.kg-minK)/(maxK-minK))*(H2-20)-10}));
+const path=pts.map((p,i)=>(i===0?“M”:“L”)+” “+p.x+” “+p.y).join(” “);
+return(<div style={S.app}>
+<div style={S.topBar}><button onClick={()=>setScreen(“home”)} style={S.btn2}>← Terug</button><h2 style={S.ttl}>Voortgang</h2><div style={{width:70}}/></div>
+<div style={S.scroll}>
+<div style={S.statsGrid}>
+<div style={S.statCard}><div style={S.statN}>{totalW}</div><div style={S.statL}>Totaal</div></div>
+<div style={S.statCard}><div style={S.statN}>{thisWeek}</div><div style={S.statL}>Deze week</div></div>
+<div style={{…S.statCard,gridColumn:“span 2”}}>
+<div style={{display:“flex”,justifyContent:“space-around”}}>
+{[[“dag1”,”#E84B2E”,“Borst”],[“dag2”,”#2E6BE8”,“Rug”],[“dag3”,”#2EBF7A”,“Schouders”]].map(([k,c,l])=>(<div key={k} style={{textAlign:“center”}}><div style={{fontSize:26,fontWeight:800,color:c}}>{dc[k]}×</div><div style={{fontSize:12,color:”#666”}}>{l}</div></div>))}
+</div>
+</div>
+</div>
+<h3 style={S.secTtl}>Gewichtsverloop</h3>
+<div style={S.card}>
+{weights.length>1?(<svg width=“100%” viewBox={“0 0 “+W2+” “+H2} style={{overflow:“visible”,marginBottom:12}}>
+<defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2EBF7A" stopOpacity="0.3"/><stop offset="100%" stopColor="#2EBF7A" stopOpacity="0"/></linearGradient></defs>
+<path d={path+” L “+pts[pts.length-1].x+” “+H2+” L “+pts[0].x+” “+H2+” Z”} fill=“url(#gg)”/>
+<path d={path} fill="none" stroke="#2EBF7A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+{pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r="4" fill="#2EBF7A" stroke="#0d0d1a" strokeWidth="2"/>)}
+</svg>):<div style={{color:”#555”,fontSize:13,textAlign:“center”,padding:16}}>Voeg meer metingen toe voor een grafiek.</div>}
+<div style={{display:“flex”,justifyContent:“space-between”}}>
+<div style={{textAlign:“center”}}><div style={{color:”#aaa”,fontSize:12}}>Start</div><div style={{fontWeight:700}}>{weights[0].kg} kg</div></div>
+<div style={{textAlign:“center”}}><div style={{color:”#aaa”,fontSize:12}}>Nu</div><div style={{fontWeight:700}}>{curKg} kg</div></div>
+<div style={{textAlign:“center”}}><div style={{color:”#aaa”,fontSize:12}}>Verschil</div><div style={{fontWeight:700,color:lost>0?”#2EBF7A”:lost<0?”#E84B2E”:“white”}}>{lost>0?”-”+lost:lost<0?”+”+Math.abs(lost):”–”} kg</div></div>
+</div>
+</div>
+<h3 style={S.secTtl}>Recente workouts</h3>
+{wlog.length===0?<div style={S.empty}>Nog geen workouts gelogd.</div>:wlog.slice(0,8).map(e=>{const w=WORKOUTS[e.dayKey];return(<div key={e.id} style={{…S.logCard,borderLeft:“4px solid “+w.color}}>
+<div style={{display:“flex”,gap:12}}><span style={{fontSize:20}}>{w.emoji}</span><div><div style={{fontWeight:700,fontSize:14}}>{e.focus}</div><div style={{color:”#555”,fontSize:12}}>{e.date} · {e.duration} min</div>{e.note&&<div style={{color:”#888”,fontSize:12,fontStyle:“italic”}}>”{e.note}”</div>}</div></div>
+<div style={{textAlign:“right”}}><div style={{color:w.color,fontWeight:700}}>{e.sc}/{e.st}</div><div style={{color:”#666”,fontSize:11}}>sets</div></div>
+</div>);})}
+</div>
+</div>);
+}
+
+if(screen===“weight”){
+return(<div style={S.app}>
+<div style={S.topBar}><button onClick={()=>setScreen(“home”)} style={S.btn2}>← Terug</button><h2 style={S.ttl}>Gewicht</h2><div style={{width:70}}/></div>
+<div style={S.scroll}>
+<div style={{background:“linear-gradient(135deg,rgba(46,191,122,0.15),rgba(46,191,122,0.05))”,border:“1px solid rgba(46,191,122,0.25)”,borderRadius:20,padding:24,textAlign:“center”}}>
+<div style={{fontSize:52,fontWeight:900,color:”#2EBF7A”}}>{curKg} kg</div>
+<div style={{color:”#555”,fontSize:14,marginBottom:20}}>Huidig gewicht</div>
+<div style={{display:“flex”,gap:10}}>
+<input type=“number” value={nw} onChange={e=>setNw(e.target.value)} placeholder=“Bijv. 101.5” style={{flex:1,background:“rgba(255,255,255,0.08)”,border:“1px solid rgba(255,255,255,0.15)”,borderRadius:12,color:“white”,padding:“12px 16px”,fontSize:16}} step=“0.1”/>
+<button onClick={addW} style={{background:”#2EBF7A”,border:“none”,color:“white”,borderRadius:12,padding:“12px 20px”,fontWeight:700,cursor:“pointer”,fontSize:15}}>Opslaan</button>
+</div>
+</div>
+<h3 style={S.secTtl}>Historie</h3>
+{[…weights].reverse().map((w,i)=>(<div key={i} style={{display:“flex”,justifyContent:“space-between”,alignItems:“center”,background:“rgba(255,255,255,0.04)”,borderRadius:12,padding:“12px 16px”,border:“1px solid rgba(255,255,255,0.06)”}}><span style={{color:”#666”,fontFamily:“monospace”}}>{w.date}</span><span style={{fontWeight:700}}>{w.kg} kg</span></div>))}
+</div>
+{toast&&<div style={S.toast}>{toast}</div>}
+</div>);
+}
+
+const now=new Date();const todayWs=wfd(ts());const todayN=dnotes[ts()];const lastW=wlog[0];
+return(<div style={S.app}>
+<div style={{position:“relative”,padding:“48px 24px 24px”,background:“linear-gradient(160deg,#1a1a3e 0%,#0d0d1a 100%)”,borderBottom:“1px solid rgba(255,255,255,0.06)”}}>
+<div style={{position:“absolute”,inset:0,background:“radial-gradient(ellipse at 80% 20%,rgba(46,107,232,0.15) 0%,transparent 60%)”,pointerEvents:“none”}}/>
+<div style={{display:“flex”,justifyContent:“space-between”,alignItems:“flex-start”,position:“relative”}}>
+<div><div style={{fontSize:28,fontWeight:700,letterSpacing:-0.5}}>Hé Mo 👋</div><div style={{color:”#666”,fontSize:14,fontFamily:“monospace”}}>{NLD[now.getDay()]} {now.getDate()} {NLM[now.getMonth()]}</div></div>
+<div onClick={()=>setScreen(“weight”)} style={{background:“rgba(255,255,255,0.06)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:16,padding:“8px 16px”,textAlign:“center”,cursor:“pointer”}}><div style={{fontSize:22,fontWeight:800,color:”#2EBF7A”}}>{curKg}</div><div style={{fontSize:11,color:”#666”}}>kg</div></div>
+</div>
+<div style={{display:“flex”,justifyContent:“space-around”,marginTop:20,background:“rgba(255,255,255,0.04)”,borderRadius:16,padding:“14px 8px”,border:“1px solid rgba(255,255,255,0.06)”,position:“relative”}}>
+{[[totalW,“Workouts”,null],[thisWeek,“Deze week”,null],[lost>0?”-”+lost+” kg”:”–”,“Afgevallen”,lost>0?”#2EBF7A”:null]].map(([v,l,c],i)=>(<div key={i} style={{textAlign:“center”}}><div style={{fontSize:22,fontWeight:800,color:c||“white”}}>{v}</div><div style={{fontSize:11,color:”#666”,marginTop:2}}>{l}</div></div>))}
+</div>
+</div>
+<div style={S.scroll}>
+{(todayWs.length>0||todayN)&&(<div style={{background:“rgba(46,191,122,0.08)”,border:“1px solid rgba(46,191,122,0.2)”,borderRadius:14,padding:“14px 16px”}}>
+<div style={{fontWeight:700,fontSize:12,color:”#2EBF7A”,textTransform:“uppercase”,letterSpacing:1,marginBottom:6}}>Vandaag</div>
+{todayWs.map(w=>(<div key={w.id} style={{display:“flex”,alignItems:“center”,gap:8,marginBottom:3}}><span style={{...S.dot,background:WORKOUTS[w.dayKey].color,width:8,height:8}}/><span style={{fontSize:13,color:”#ccc”}}>{w.focus} · {w.duration} min</span></div>))}
+{todayN&&<div style={{fontSize:13,color:”#888”,fontStyle:“italic”,marginTop:4}}>📝 {todayN.length>60?todayN.slice(0,60)+”…”:todayN}</div>}
+</div>)}
+{lastW&&!todayWs.length&&(<div style={{background:“rgba(255,255,255,0.04)”,borderRadius:12,padding:“10px 16px”,fontSize:14,border:“1px solid rgba(255,255,255,0.06)”}}>Laatste: <span style={{color:WORKOUTS[lastW.dayKey].color,fontWeight:700}}>{lastW.focus}</span><span style={{color:”#666”,fontSize:13}}> · {lastW.date}</span></div>)}
+<h3 style={S.secTtl}>Kies je workout</h3>
+{Object.entries(WORKOUTS).map(([key,w])=>(<button key={key} onClick={()=>startW(key)} style={{background:“transparent”,border:“none”,padding:0,width:“100%”,cursor:“pointer”}}>
+<div style={{display:“flex”,alignItems:“center”,justifyContent:“space-between”,background:“rgba(255,255,255,0.04)”,borderRadius:16,padding:16,border:“1px solid rgba(255,255,255,0.06)”,borderLeft:“5px solid “+w.color,marginBottom:0}}>
+<div style={{display:“flex”,alignItems:“center”,gap:14}}><div style={{width:48,height:48,borderRadius:14,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:22,background:w.gradient}}>{w.emoji}</div><div><div style={{fontSize:12,color:”#666”,fontFamily:“monospace”,letterSpacing:1}}>{w.label}</div><div style={{fontSize:17,fontWeight:700}}>{w.focus}</div><div style={{fontSize:12,color:”#555”}}>{w.exercises.length} oefeningen{w.cardio?” · “+w.cardio.duration+” min “+w.cardio.name:””}</div></div></div>
+<div style={{color:w.color,fontSize:16}}>▶</div>
+</div>
+</button>))}
+<div style={{display:“flex”,gap:10}}>
+{[[“calendar”,“📅”,“Kalender”],[“progress”,“📊”,“Voortgang”],[“weight”,“⚖️”,“Gewicht”]].map(([sc,ic,lb])=>(<button key={sc} onClick={()=>setScreen(sc)} style={S.navBtn}><span style={{fontSize:20}}>{ic}</span><span style={{fontSize:12}}>{lb}</span></button>))}
+</div>
+<div style={{background:“rgba(232,75,46,0.1)”,border:“1px solid rgba(232,75,46,0.2)”,borderRadius:12,padding:“10px 14px”,fontSize:13,color:”#E8834B”,textAlign:“center”}}>⚠️ Controleer je bloedsuiker voor en na het sporten</div>
+</div>
+{toast&&<div style={S.toast}>{toast}</div>}
+
+  </div>);
+}
+const S={
+  app:{minHeight:"100vh",background:"#0d0d1a",color:"white",fontFamily:"Georgia,serif",maxWidth:480,margin:"0 auto",position:"relative",overflowX:"hidden"},
+  scroll:{padding:"20px 16px 100px",display:"flex",flexDirection:"column",gap:12},
+  topBar:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"48px 16px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"linear-gradient(160deg,#1a1a3e 0%,#0d0d1a 100%)"},
+  ttl:{fontSize:18,fontWeight:800,margin:0},
+  btn2:{background:"rgba(255,255,255,0.06)",border:"none",color:"white",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontSize:13},
+  ybtn:{background:"rgba(245,200,66,0.15)",border:"1px solid rgba(245,200,66,0.3)",color:"#F5C842",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontSize:13,fontWeight:700},
+  secTtl:{fontSize:13,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1.5,margin:"4px 0 0"},
+  card:{background:"rgba(255,255,255,0.04)",borderRadius:16,padding:16,border:"1px solid rgba(255,255,255,0.06)"},
+  lbl:{display:"block",color:"#666",fontSize:13,marginBottom:8},
+  ta:{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"white",padding:"10px 12px",fontSize:14,resize:"none",boxSizing:"border-box"},
+  cancelBtn:{flex:1,background:"rgba(255,255,255,0.06)",border:"none",color:"#aaa",borderRadius:12,padding:12,cursor:"pointer",fontSize:15},
+  saveBtn:{flex:2,background:"#F5C842",border:"none",color:"#0d0d1a",borderRadius:12,padding:12,fontWeight:800,cursor:"pointer",fontSize:15},
+  navBtn:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:16,padding:"14px 8px",color:"white",cursor:"pointer"},
+  dot:{width:5,height:5,borderRadius:"50%",display:"inline-block",flexShrink:0},
+  pill:{display:"inline-block",borderRadius:8,padding:"3px 10px",fontSize:12,color:"white",fontWeight:600,marginTop:4,marginRight:4},
+  wHdr:{padding:"48px 24px 24px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"},
+  statsGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10},
+  statCard:{background:"rgba(255,255,255,0.04)",borderRadius:16,padding:16,border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"},
+  statN:{fontSize:28,fontWeight:800},
+  statL:{color:"#666",fontSize:12,marginTop:2},
+  logCard:{display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"14px 16px",border:"1px solid rgba(255,255,255,0.06)"},
+  empty:{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:20,color:"#555",textAlign:"center",fontSize:14,border:"1px solid rgba(255,255,255,0.06)"},
+  monthNav:{display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"12px 16px",border:"1px solid rgba(255,255,255,0.06)"},
+  arrow:{background:"rgba(255,255,255,0.08)",border:"none",color:"white",borderRadius:10,width:36,height:36,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
+  calGrid:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4},
+  calH:{textAlign:"center",fontSize:11,color:"#444",fontWeight:700,padding:"4px 0",textTransform:"uppercase"},
+  calCell:{aspectRatio:"1",borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",gap:3},
+  legend:{display:"flex",flexWrap:"wrap",gap:10,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:"10px 14px",border:"1px solid rgba(255,255,255,0.05)"},
+  noteHist:{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"14px 16px",cursor:"pointer",textAlign:"left",width:"100%"},
+  toast:{position:"fixed",bottom:30,left:"50%",transform:"translateX(-50%)",background:"#2EBF7A",color:"white",borderRadius:20,padding:"12px 24px",fontWeight:700,fontSize:14,zIndex:999,whiteSpace:"nowrap",boxShadow:"0 8px 30px rgba(0,0,0,0.4)"},
+};
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
